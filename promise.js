@@ -10,20 +10,25 @@
         this._callbacks = [];
     }
 
-    Promise.prototype.then = function(func, context) {
-        var p;
-        if (this._isdone) {
-            p = func.apply(context, this.result);
-        } else {
-            p = new Promise();
-            this._callbacks.push(function () {
-                var res = func.apply(context, arguments);
-                if (res && typeof res.then === 'function')
-                    res.then(p.done, p);
-            });
+    Promise.prototype.then = function (callback, context) {
+        var p = new Promise();
+
+        function resolve() {
+            var result = callback.apply(context, arguments);
+            if (result instanceof Promise) {
+                result.then(p.done, p);
+            }
+            else {
+                p.done(result);
+            }
         }
+
+        this._isdone
+            ? resolve.apply(null, this.result)
+            : this._callbacks.push(resolve);
+
         return p;
-    };
+    }
 
     Promise.prototype.done = function() {
         this.result = arguments;

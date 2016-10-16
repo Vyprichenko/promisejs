@@ -45,9 +45,30 @@ function late(n) {
  */
 
 function test_simple_synchronous() {
-    sync_return(123).then(function(error, result) {
+    var p1 = sync_return(123).then(function(error, result) {
         assert(result === 123, 'simple synchronous test');
     });
+    
+
+    var queue = 2;
+    var value = '';
+    var p2;
+    if (p1 && p1.then) {
+        p2 = p1.then(
+            function() {
+                queue--;
+                return 'foo';
+            }
+        ).then(
+            function (arg) {
+                queue--;
+                value = arg;
+            }
+        );
+    }
+    assert(p1 instanceof promise.Promise && p2 instanceof promise.Promise, 'then must always return Promise object');
+    assert(queue === 0, 'callbacks added to the resolved Promise must to be called');
+    assert(value === 'foo', 'callbacks return values must to be passed througn the chain');
 }
 
 function test_simple_asynchronous() {
