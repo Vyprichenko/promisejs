@@ -8,6 +8,8 @@
 
     function Promise() {
         this._callbacks = [];
+        this._isdone = false;
+        this.result = [];
     }
 
     Promise.prototype.then = function (callback, context) {
@@ -34,51 +36,43 @@
         this.result = arguments;
         this._isdone = true;
         for (var i = 0; i < this._callbacks.length; i++) {
-            this._callbacks[i].apply(null, arguments);
+            this._callbacks[i].apply(null, this.result);
         }
-        this._callbacks = [];
+        this._callbacks.length = 0;
     };
 
     function join(promises) {
         var p = new Promise();
         var results = [];
+        var resolved = 0;
 
-        if (!promises || !promises.length) {
-            p.done(results);
-            return p;
-        }
+        promises && promises.length > 0
+            ? promises.forEach(notify)
+            : p.done(results);
 
-        var numdone = 0;
-        var total = promises.length;
-
-        function notifier(i) {
-            return function() {
-                numdone += 1;
+        function notify(pp, i, ps) {
+            pp.then(function () {
+                resolved++;
                 results[i] = Array.prototype.slice.call(arguments);
-                if (numdone === total) {
+                if (resolved == ps.length) {
                     p.done(results);
                 }
-            };
+            });
         }
-
-        for (var i = 0; i < total; i++) {
-            promises[i].then(notifier(i));
-        }
-
         return p;
     }
 
-    function chain(funcs, args) {
+    function chain(callbacks, args) {
         var p = new Promise();
-        if (funcs.length === 0) {
-            p.done.apply(p, args);
-        } else {
-            funcs[0].apply(null, args).then(function() {
-                funcs.splice(0, 1);
-                chain(funcs, arguments).then(function() {
+        if (callbacks && callbacks.length) {
+            callbacks[0].apply(null, args).then(function (error, result) {
+                chain(callbacks.slice(1), arguments).then(function () {
                     p.done.apply(p, arguments);
                 });
             });
+        }
+        else {
+            p.done.apply(p, args);
         }
         return p;
     }
