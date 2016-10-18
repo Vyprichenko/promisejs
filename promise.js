@@ -39,6 +39,7 @@
             this._callbacks[i].apply(null, this.result);
         }
         this._callbacks.length = 0;
+        return this;
     }
 
     function join(promises) {
