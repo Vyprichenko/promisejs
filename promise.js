@@ -110,7 +110,7 @@
                 ).join('&');
         }
     }
-    
+
     function new_xhr() {
         var xhr;
         if (window.XMLHttpRequest) {
@@ -220,6 +220,7 @@
         get: _ajaxer('GET'),
         post: _ajaxer('POST'),
         put: _ajaxer('PUT'),
+        put: _ajaxer('PATCH'),
         del: _ajaxer('DELETE'),
 
         /* Error codes */
