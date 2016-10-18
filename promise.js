@@ -4,7 +4,7 @@
  *  https://github.com/stackp/promisejs
  */
 
-(function(exports) {
+(function (exports) {
 
     function Promise() {
         this._callbacks = [];
@@ -32,14 +32,14 @@
         return p;
     }
 
-    Promise.prototype.done = function() {
+    Promise.prototype.done = function () {
         this.result = arguments;
         this._isdone = true;
         for (var i = 0; i < this._callbacks.length; i++) {
             this._callbacks[i].apply(null, this.result);
         }
         this._callbacks.length = 0;
-    };
+    }
 
     function join(promises) {
         var p = new Promise();
@@ -66,9 +66,11 @@
         var p = new Promise();
         if (callbacks && callbacks.length) {
             callbacks[0].apply(null, args).then(function (error, result) {
-                chain(callbacks.slice(1), arguments).then(function () {
-                    p.done.apply(p, arguments);
-                });
+                chain(callbacks.slice(1), arguments).then(
+                    function () {
+                        p.done.apply(p, arguments);
+                    }
+                );
             });
         }
         else {
@@ -81,75 +83,103 @@
      * AJAX requests
      */
 
-    function _encode(data) {
-        var payload = "";
-        if (typeof data === "string") {
-            payload = data;
-        } else {
-            var e = encodeURIComponent;
-            var params = [];
-
-            for (var k in data) {
-                if (data.hasOwnProperty(k)) {
-                    params.push(e(k) + '=' + e(data[k]));
-                }
-            }
-            payload = params.join('&')
+    function encode(data, type) {
+        if (data instanceof FormData) {
+            return data;
         }
-        return payload;
-    }
+        if (typeof data != 'object' || data === null) {
+            return data || '';
+        }
+        switch (type) {
 
+            case 'application/json':
+                return JSON.stringify(data);
+
+            case 'text/plain':
+                return Object.keys(data).map(
+                    function (name) {
+                        return name + '=' + data[name];
+                    }
+                ).join('\r\n');
+
+            default/* application/x-www-form-urlencoded */:
+                return Object.keys(data).map(
+                    function (name) {
+                        return encodeURIComponent(name) + '=' + encodeURIComponent(data[name]);
+                    }
+                ).join('&');
+        }
+    }
+    
     function new_xhr() {
         var xhr;
         if (window.XMLHttpRequest) {
             xhr = new XMLHttpRequest();
-        } else if (window.ActiveXObject) {
+        }
+        else if (window.ActiveXObject) {
             try {
-                xhr = new ActiveXObject("Msxml2.XMLHTTP");
-            } catch (e) {
-                xhr = new ActiveXObject("Microsoft.XMLHTTP");
+                xhr = new ActiveXObject('Msxml2.XMLHTTP');
+            }
+            catch (e) {
+                xhr = new ActiveXObject('Microsoft.XMLHTTP');
             }
         }
         return xhr;
     }
 
-
     function ajax(method, url, data, headers) {
         var p = new Promise();
-        var xhr, payload;
-        data = data || {};
-        headers = headers || {};
+        var xhr, payload = null;
 
         try {
             xhr = new_xhr();
-        } catch (e) {
-            p.done(promise.ENOXHR, "");
+        }
+        catch (e) {
+            p.done(promise.ENOXHR, '');
             return p;
         }
 
-        payload = _encode(data);
-        if (method === 'GET' && payload) {
-            url += '?' + payload;
-            payload = null;
+        var supportedTypes = [
+            'application/x-www-form-urlencoded',
+            'application/json',
+            'text/plain'
+        ];
+
+        var contentType = (
+            headers && headers[Object.keys(headers).filter(
+                function (h) {
+                    return h.toLowerCase() == 'content-type';
+                }
+            )[0]]
+        ) || supportedTypes[0];
+
+        if (method.toUpperCase() == 'GET') {
+            xhr.open(method, url + (data ? '?' + encode(data) : ''));
+            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+        }
+        else if (data instanceof FormData) {
+            xhr.open(method, url);
+            payload = data;
+        }
+        else {
+            xhr.open(method, url);
+            xhr.setRequestHeader('Content-type', contentType);
+            payload = encode(data, supportedTypes.filter(
+                function (type) {
+                    return contentType.match(new RegExp(type, 'i'));
+                }
+            )[0]);
         }
 
-        xhr.open(method, url);
-
-        var content_type = 'application/x-www-form-urlencoded';
         for (var h in headers) {
-            if (headers.hasOwnProperty(h)) {
-                if (h.toLowerCase() === 'content-type')
-                    content_type = headers[h];
-                else
-                    xhr.setRequestHeader(h, headers[h]);
+            if (headers.hasOwnProperty(h) && h.toLowerCase() != 'content-type') {
+                xhr.setRequestHeader(h, headers[h]);
             }
         }
-        xhr.setRequestHeader('Content-type', content_type);
-
 
         function onTimeout() {
             xhr.abort();
-            p.done(promise.ETIMEOUT, "", xhr);
+            p.done(promise.ETIMEOUT, '', xhr);
         }
 
         var timeout = promise.ajaxTimeout;
@@ -157,26 +187,28 @@
             var tid = setTimeout(onTimeout, timeout);
         }
 
-        xhr.onreadystatechange = function() {
+        xhr.onreadystatechange = function () {
             if (timeout) {
                 clearTimeout(tid);
             }
-            if (xhr.readyState === 4) {
-                var err = (!xhr.status ||
-                           (xhr.status < 200 || xhr.status >= 300) &&
-                           xhr.status !== 304);
+            if (xhr.readyState == 4) {
+                var err = (
+                    !xhr.status ||
+                    (xhr.status < 200 || xhr.status >= 300) &&
+                    xhr.status !== 304
+                );
                 p.done(err, xhr.responseText, xhr);
             }
-        };
+        }
 
         xhr.send(payload);
         return p;
     }
 
     function _ajaxer(method) {
-        return function(url, data, headers) {
+        return function (url, data, headers) {
             return ajax(method, url, data, headers);
-        };
+        }
     }
 
     var promise = {
@@ -184,6 +216,7 @@
         join: join,
         chain: chain,
         ajax: ajax,
+        encode: encode,
         get: _ajaxer('GET'),
         post: _ajaxer('POST'),
         put: _ajaxer('PUT'),
@@ -203,14 +236,15 @@
          * code.
          */
         ajaxTimeout: 0
-    };
+    }
 
     if (typeof define === 'function' && define.amd) {
         /* AMD support */
-        define(function() {
+        define(function () {
             return promise;
         });
-    } else {
+    }
+    else {
         exports.promise = promise;
     }
 

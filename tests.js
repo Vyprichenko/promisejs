@@ -209,6 +209,39 @@ function test_ajax_timeout () {
         });
 }
 
+function test_ajax_encode(type) {
+    var encode = promise.encode;
+    var data, encodedData;
+    var prefix = 'encode(' + type + ') ';
+
+    switch (type) {
+        case 'string':
+            data = 'test';
+            assert(encode(data) === data, prefix + ' must make no additional processing');
+        break;
+        case 'json':
+            data = { foo: 'bar' };
+            try {
+                encodedData = JSON.parse(encode(data, 'application/json'));
+            }
+            catch(e) {
+                encodedData = {};
+                console.error(e);
+            }
+            assert(encodedData.foo === data.foo, prefix + ' must return json-stringified representation of an object');
+        break;
+        case 'formData':
+            data = (typeof FormData == 'function' && new FormData());
+            assert(encode(data) === data, prefix + ' must return object as is');
+        break;
+        case 'object':
+            assert(
+                typeof encode({}) == 'string' && typeof encode([]) == 'string',
+                prefix + 'must stringify objects'
+            );
+        break;
+    }
+}
 
 function test() {
     test_simple_synchronous();
@@ -219,4 +252,8 @@ function test() {
     test_then_then();
     test_chain();
     test_ajax_timeout();
+    test_ajax_encode('string');
+    test_ajax_encode('json');
+    test_ajax_encode('formData');
+    test_ajax_encode('object');
 }
