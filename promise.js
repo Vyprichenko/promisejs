@@ -4,14 +4,26 @@
  *  https://github.com/stackp/promisejs
  */
 
+/** @module promise */
+
 (function (exports) {
 
+    /**
+     * @constructor
+     * @alias module:promise.Promise
+     */
     function Promise() {
         this._callbacks = [];
         this._isdone = false;
         this.result = [];
     }
 
+    /**
+     * Adds callback to the Promise object
+     * @param {Function} callback
+     * @param {Promise} [context]
+     * @returns {Promise} that is resolved when the callback resolves its promise
+     */
     Promise.prototype.then = function (callback, context) {
         var p = new Promise();
 
@@ -32,6 +44,11 @@
         return p;
     }
 
+    /**
+     * Resolves a Promise object and calls any callbacks
+     * with the given arguments
+     * @returns {Promise}
+     */
     Promise.prototype.done = function () {
         this.result = arguments;
         this._isdone = true;
@@ -42,6 +59,13 @@
         return this;
     }
 
+    /**
+     * The callback will be passed an array containing the values passed by each promise,
+     * in the same order that the promises were given
+     * @alias module:promise.join
+     * @param {Promise[]} promises
+     * @returns {Promise} that is resolved once all the arguments are resolved
+     */
     function join(promises) {
         var p = new Promise();
         var results = [];
@@ -63,6 +87,13 @@
         return p;
     }
 
+    /**
+     * Chains asynchronous functions that return a promise each
+     * @alias module:promise.chain
+     * @param {Function[]} callbacks
+     * @param {Array} [args]
+     * @returns {Promise} that is resolved once all the arguments are resolved
+     */
     function chain(callbacks, args) {
         var p = new Promise();
         if (callbacks && callbacks.length) {
@@ -80,10 +111,15 @@
         return p;
     }
 
-    /*
-     * AJAX requests
-     */
+    /* AJAX requests */
 
+    /**
+     * Encodes data in accordance with the content type
+     * Strings and FormData objects are returned unchanged
+     * @param {*} data
+     * @param {string} [type]
+     * @returns {(string|FormData)}
+     */
     function encode(data, type) {
         if (data instanceof FormData) {
             return data;
@@ -112,6 +148,10 @@
         }
     }
 
+    /**
+     * @returns {(XMLHttpRequest|ActiveXObject)}
+     * @throws Unable to create ActiveXObject
+     */
     function new_xhr() {
         var xhr;
         if (window.XMLHttpRequest) {
@@ -128,6 +168,14 @@
         return xhr;
     }
 
+    /**
+     * @alias module:promise.ajax
+     * @param {string} method
+     * @param {string} url
+     * @param {*} [data]
+     * @param {Object} [headers]
+     * @returns {Promise}
+     */
     function ajax(method, url, data, headers) {
         var p = new Promise();
         var xhr, payload = null;
@@ -140,12 +188,17 @@
             return p;
         }
 
+        // List of content types which can be used
+        // to encode data if Content-Type header matches one of them
+        // The first one is used by default
         var supportedTypes = [
             'application/x-www-form-urlencoded',
             'application/json',
             'text/plain'
         ];
 
+        // Content-Type of the current request
+        // or default value if not specified
         var contentType = (
             headers && headers[Object.keys(headers).filter(
                 function (h) {
@@ -154,17 +207,23 @@
             )[0]]
         ) || supportedTypes[0];
 
+        // GET request data is always urlencoded and attached to the url
         if (method.toUpperCase() == 'GET') {
             xhr.open(method, url + (data ? '?' + encode(data) : ''));
-            xhr.setRequestHeader('Content-type', 'application/x-www-form-urlencoded');
+            xhr.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
         }
+        // FormData object sets Content-Type to multipart/form-data
+        // custom Content-Type header should be ignored
         else if (data instanceof FormData) {
             xhr.open(method, url);
             payload = data;
         }
+        // User-defined Content-Type or default value is used
+        // Data is encoded depending on Content-Type
+        // which is matched with one of the supported
         else {
             xhr.open(method, url);
-            xhr.setRequestHeader('Content-type', contentType);
+            xhr.setRequestHeader('Content-Type', contentType);
             payload = encode(data, supportedTypes.filter(
                 function (type) {
                     return contentType.match(new RegExp(type, 'i'));
@@ -206,6 +265,10 @@
         return p;
     }
 
+    /**
+     * @param {string} method
+     * @returns {Function}
+     */
     function _ajaxer(method) {
         return function (url, data, headers) {
             return ajax(method, url, data, headers);
