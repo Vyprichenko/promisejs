@@ -17,6 +17,28 @@
         this._isdone = false;
         this.result = [];
     }
+    
+    /**
+     * @private
+     */
+    Promise.prototype.resolve = function () {
+        this.result = arguments;
+        this._isdone = true;
+        for (var i = 0; i < this._callbacks.length; i++) {
+            this._callbacks[i].apply(null, this.result);
+        }
+        this._callbacks.length = 0;
+    }
+
+    /**
+     * Resolves a Promise object and calls any callbacks
+     * with the given arguments
+     * @returns {Promise}
+     */
+    Promise.prototype.done = function () {
+        this.resolve.apply(this, arguments);
+        return this;
+    }
 
     /**
      * Adds callback to the Promise object
@@ -30,10 +52,10 @@
         function resolve() {
             var result = callback.apply(context, arguments);
             if (result instanceof Promise) {
-                result.then(p.done, p);
+                result.then(p.resolve, p);
             }
             else {
-                p.done(result);
+                p.resolve(result);
             }
         }
 
@@ -42,21 +64,6 @@
             : this._callbacks.push(resolve);
 
         return p;
-    }
-
-    /**
-     * Resolves a Promise object and calls any callbacks
-     * with the given arguments
-     * @returns {Promise}
-     */
-    Promise.prototype.done = function () {
-        this.result = arguments;
-        this._isdone = true;
-        for (var i = 0; i < this._callbacks.length; i++) {
-            this._callbacks[i].apply(null, this.result);
-        }
-        this._callbacks.length = 0;
-        return this;
     }
 
     /**
@@ -73,14 +80,14 @@
 
         promises && promises.length > 0
             ? promises.forEach(notify)
-            : p.done(results);
+            : p.resolve(results);
 
         function notify(pp, i, ps) {
             pp.then(function () {
                 resolved++;
                 results[i] = Array.prototype.slice.call(arguments);
                 if (resolved == ps.length) {
-                    p.done(results);
+                    p.resolve(results);
                 }
             });
         }
@@ -100,13 +107,13 @@
             callbacks[0].apply(null, args).then(function (error, result) {
                 chain(callbacks.slice(1), arguments).then(
                     function () {
-                        p.done.apply(p, arguments);
+                        p.resolve.apply(p, arguments);
                     }
                 );
             });
         }
         else {
-            p.done.apply(p, args);
+            p.resolve.apply(p, args);
         }
         return p;
     }
@@ -184,7 +191,7 @@
             xhr = new_xhr();
         }
         catch (e) {
-            p.done(promise.ENOXHR, '');
+            p.resolve(promise.ENOXHR, '');
             return p;
         }
 
@@ -239,7 +246,7 @@
 
         function onTimeout() {
             xhr.abort();
-            p.done(promise.ETIMEOUT, '', xhr);
+            p.resolve(promise.ETIMEOUT, '', xhr);
         }
 
         var timeout = promise.ajaxTimeout;
@@ -257,7 +264,7 @@
                     (xhr.status < 200 || xhr.status >= 300) &&
                     xhr.status !== 304
                 );
-                p.done(err, xhr.responseText, xhr);
+                p.resolve(err, xhr.responseText, xhr);
             }
         }
 
